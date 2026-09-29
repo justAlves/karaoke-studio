@@ -27,6 +27,33 @@ YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtu
 DOWNLOAD_QUEUE = DownloadQueue()
 
 
+def build_mix(video_id: str, levels: dict[str, float]) -> Path | None:
+    names = ("backing_vocals", "drums", "bass", "guitar", "piano", "other")
+    target = ROOT / "stems" / video_id
+    paths = [target / f"{name}.flac" for name in names]
+    if not all(path.is_file() for path in paths):
+        return None
+    signature = ",".join(f"{name}:{levels.get(name, 1):.3f}" for name in names)
+    digest = hashlib.sha1(signature.encode()).hexdigest()[:12]
+    output = target / "mixes" / f"{digest}.m4a"
+    if output.is_file():
+        return output
+    output.parent.mkdir(exist_ok=True)
+    command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    for path in paths:
+        command.extend(["-i", str(path)])
+    filters = []
+    for index, name in enumerate(names):
+        filters.append(f"[{index}:a]volume={max(0, min(1.5, levels.get(name, 1))):.3f}[s{index}]")
+    filters.append("".join(f"[s{i}]" for i in range(len(names))) + f"amix=inputs={len(names)}:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.95[a]")
+    command.extend(["-filter_complex", ";".join(filters), "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output)])
+    process = subprocess.run(command, capture_output=True, timeout=600, check=False)
+    if process.returncode or not output.is_file():
+        print(f"Falha na mixagem: {process.stderr.decode(errors='replace')[-300:]}")
+        return None
+    return output
+
+
 def session_url() -> str:
     public_url = os.environ.get("KARAOKE_PUBLIC_URL", "").strip().rstrip("/")
     if public_url:
@@ -308,6 +335,25 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_audio(path)
             except (BrokenPipeError, ConnectionResetError):
                 pass
+            return
+        if route == "/api/mix":
+            parameters = parse_qs(parsed.query)
+            video_id = parameters.get("id", [""])[0]
+            if not VIDEO_ID.fullmatch(video_id):
+                self.send_json({"error": "Música inválida."}, 400)
+                return
+            levels = {}
+            for item in parameters.get("level", []):
+                name, _, raw = item.partition(":")
+                if name in {"backing_vocals", "drums", "bass", "guitar", "piano", "other"}:
+                    try: levels[name] = float(raw)
+                    except ValueError: pass
+            path = build_mix(video_id, levels)
+            if not path:
+                self.send_json({"error": "Stems instrumentais ainda não disponíveis."}, 404)
+                return
+            try: self.send_audio(path)
+            except (BrokenPipeError, ConnectionResetError): pass
             return
         if route == "/api/preview":
             video_id = parse_qs(parsed.query).get("id", [""])[0]

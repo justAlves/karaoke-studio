@@ -45,6 +45,8 @@ let activeLyricIndex = -2;
 let partyModeEnabled = false;
 let controlsTimer = null;
 let stemSyncTimer = null;
+let activeMixJob = null;
+let mixReloadTimer = null;
 
 function showKaraokeControls() {
   karaokeScreen.classList.remove("controls-idle");
@@ -73,25 +75,41 @@ function setupStemMixer(job) {
   available.forEach((name) => {
     const audio = new Audio();
     audio.preload = "auto";
-    audio.src = `/api/stem?id=${encodeURIComponent(job.id)}&stem=${encodeURIComponent(name)}`;
-    audio.addEventListener("loadedmetadata", () => {
-      if (Number.isFinite(karaokeAudio.currentTime)) audio.currentTime = karaokeAudio.currentTime;
-      if (!karaokeAudio.paused) audio.play().catch(() => {});
-    });
     const row = document.createElement("div"); row.className = "stem-mixer-row";
     const mute = document.createElement("button"); mute.type = "button"; mute.className = "stem-mute"; mute.textContent = "MUTAR"; mute.setAttribute("aria-label", `Mutar ${stemLabels[name]}`);
     const label = document.createElement("span"); label.className = "stem-label"; label.textContent = stemLabels[name];
     const volume = document.createElement("input"); volume.type = "range"; volume.min = "0"; volume.max = "1"; volume.step = "0.01"; volume.value = name === "backing_vocals" ? "0.78" : "1"; volume.setAttribute("aria-label", `Volume de ${stemLabels[name]}`);
-    audio.volume = Number(volume.value);
-    mute.addEventListener("click", () => { const muted = audio.volume > 0; audio.volume = muted ? 0 : Number(volume.value) || 1; mute.classList.toggle("muted", muted); mute.textContent = muted ? "ATIVAR" : "MUTAR"; });
-    volume.addEventListener("input", () => { audio.volume = Number(volume.value); mute.classList.toggle("muted", audio.volume === 0); });
-    row.append(mute, label, volume); stemMixerList.append(row); stemTracks[name] = { audio, volume };
+    const item = { audio, volume, muted: false };
+    mute.addEventListener("click", () => { item.muted = !item.muted; mute.classList.toggle("muted", item.muted); mute.textContent = item.muted ? "ATIVAR" : "MUTAR"; scheduleMixReload(); });
+    volume.addEventListener("input", () => { item.muted = false; mute.classList.remove("muted"); scheduleMixReload(); });
+    row.append(mute, label, volume); stemMixerList.append(row); stemTracks[name] = item;
   });
-  karaokeAudio.volume = available.length ? 0 : 1;
+  karaokeAudio.volume = 1;
+}
+
+function mixUrl(job) {
+  const query = Object.entries(stemTracks).map(([name, item]) => `level=${encodeURIComponent(`${name}:${item.muted ? 0 : Number(item.volume.value)}`)}`).join("&");
+  return `/api/mix?id=${encodeURIComponent(job.id)}&${query}`;
+}
+
+function scheduleMixReload() {
+  clearTimeout(mixReloadTimer);
+  mixReloadTimer = setTimeout(() => {
+    if (!activeMixJob || stemMixer.hidden) return;
+    const playing = !karaokeAudio.paused;
+    const position = karaokeAudio.currentTime;
+    karaokeAudio.src = mixUrl(activeMixJob);
+    karaokeAudio.addEventListener("loadedmetadata", () => {
+      karaokeAudio.currentTime = Math.min(position, karaokeAudio.duration || position);
+      if (playing) karaokeAudio.play().catch(() => {});
+    }, { once: true });
+    karaokeAudio.load();
+  }, 180);
 }
 
 function syncStemTracks(play) {
   Object.values(stemTracks).forEach(({ audio }) => {
+    if (!audio.src) return;
     if (Math.abs(audio.currentTime - karaokeAudio.currentTime) > 0.04) {
       try { audio.currentTime = karaokeAudio.currentTime; } catch { /* metadata ainda não carregou */ }
     }
@@ -550,7 +568,8 @@ function loadKaraokeSong() {
   karaokeSeek.value = "0";
   karaokeLyrics.classList.remove("plain-lyrics");
   setupStemMixer(job);
-  karaokeAudio.src = `/api/karaoke?id=${encodeURIComponent(job.id)}`;
+  activeMixJob = job;
+  karaokeAudio.src = stemMixer.hidden ? `/api/karaoke?id=${encodeURIComponent(job.id)}` : mixUrl(job);
   karaokeAudio.load();
   renderLyrics();
   karaokeAudio.play().catch(() => {
@@ -576,6 +595,7 @@ function closeKaraoke() {
   karaokeAudio.pause();
   karaokeAudio.removeAttribute("src");
   karaokeAudio.load();
+  activeMixJob = null;
   stopStemTracks();
   stemMixer.hidden = true;
   karaokeScreen.hidden = true;
