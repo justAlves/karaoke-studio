@@ -16,7 +16,7 @@ python3 -m venv .venv
 .venv/bin/python app.py
 ```
 
-Abra <http://127.0.0.1:8000> no navegador. O projeto usa `yt-dlp` para consultar o YouTube, sem chave de API. Se o YouTube alterar a busca, pode ser necessário atualizar a dependência.
+Abra <http://127.0.0.1:8010> no navegador. O projeto usa `yt-dlp` para consultar o YouTube, sem chave de API. Se o YouTube alterar a busca, pode ser necessário atualizar a dependência.
 
 ## Deploy com Docker
 
@@ -26,7 +26,7 @@ A imagem padrão usa CPU e funciona em uma VPS comum. Os volumes mantêm a fila,
 docker compose up -d --build
 ```
 
-Depois abra `http://IP_DO_SERVIDOR:8000`. Para o QR Code gerar o endereço correto do servidor, defina o host público antes de iniciar:
+Depois abra `http://IP_DO_SERVIDOR:8010`. Para o QR Code gerar o endereço correto do servidor, defina o host público antes de iniciar:
 
 ```bash
 KARAOKE_HOST=karaoke.exemplo.com docker compose up -d --build
@@ -48,11 +48,11 @@ Cole o resultado como valor da variável no Coolify. As integrações são opcio
 
 Defina `CLOUD_CLEANUP_LOCAL=true` para remover os arquivos locais depois do upload. O karaokê é baixado do R2 novamente quando alguém iniciar a música.
 
-Se usar um IP, informe apenas o host, sem `http://` e sem a porta. Libere a porta 8000 no firewall ou use um proxy reverso HTTPS. Como a sessão não tem autenticação nesta versão, mantenha o serviço atrás de uma rede privada, VPN ou proteção de acesso quando ele estiver em um servidor público.
+Se usar um IP, informe apenas o host, sem `http://` e sem a porta. Libere a porta 8010 no firewall ou use um proxy reverso HTTPS. Como a sessão não tem autenticação nesta versão, mantenha o serviço atrás de uma rede privada, VPN ou proteção de acesso quando ele estiver em um servidor público.
 
 ## Sessão compartilhada
 
-O servidor escuta a rede local e mostra um QR Code na seção da fila. Pessoas conectadas ao mesmo Wi-Fi podem escanear o código, abrir o endereço no celular e adicionar músicas à mesma fila. A porta 8000 precisa estar liberada no firewall. Se o endereço detectado estiver incorreto, inicie com o IP correto:
+O servidor escuta a rede local e mostra um QR Code na seção da fila. Pessoas conectadas ao mesmo Wi-Fi podem escanear o código, abrir o endereço no celular e adicionar músicas à mesma fila. A porta 8010 precisa estar liberada no firewall. Se o endereço detectado estiver incorreto, inicie com o IP correto:
 
 ```bash
 KARAOKE_HOST=192.168.0.12 .venv-gpu/bin/python app.py

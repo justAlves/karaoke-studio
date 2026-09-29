@@ -6,9 +6,10 @@ services:
     container_name: karaoke-studio
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8010:8010"
     environment:
       KARAOKE_HOST: "${KARAOKE_HOST:-}"
+      KARAOKE_PORT: "${KARAOKE_PORT:-8010}"
       KARAOKE_PUBLIC_URL: "${KARAOKE_PUBLIC_URL:-}"
       KARAOKE_PASSWORD: "${KARAOKE_PASSWORD:-}"
       KARAOKE_AUTH_SECRET: "${KARAOKE_AUTH_SECRET:-}"

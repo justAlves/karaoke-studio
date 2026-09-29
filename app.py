@@ -42,7 +42,8 @@ def session_url() -> str:
             probe.close()
     if ":" in host and not host.startswith("["):
         host = f"[{host}]"
-    return f"http://{host}:8000/"
+    port = os.environ.get("KARAOKE_PORT", "8010")
+    return f"http://{host}:{port}/"
 
 
 def video_url_from_input(value: str) -> str | None:
@@ -383,7 +384,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    port = int(os.environ.get("KARAOKE_PORT", "8000"))
+    port = int(os.environ.get("KARAOKE_PORT", "8010"))
     address = (os.environ.get("KARAOKE_BIND", "0.0.0.0"), port)
     server = ThreadingHTTPServer(address, Handler)
     print(f"Karaoke Studio em {session_url()}")
