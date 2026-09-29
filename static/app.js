@@ -44,6 +44,7 @@ let playlistIndex = 0;
 let activeLyricIndex = -2;
 let partyModeEnabled = false;
 let controlsTimer = null;
+let stemSyncTimer = null;
 
 function showKaraokeControls() {
   karaokeScreen.classList.remove("controls-idle");
@@ -58,6 +59,8 @@ function keepKaraokeControlsVisible() {
 }
 
 function stopStemTracks() {
+  clearInterval(stemSyncTimer);
+  stemSyncTimer = null;
   Object.values(stemTracks).forEach((track) => { track.audio.pause(); track.audio.removeAttribute("src"); track.audio.load(); });
   Object.keys(stemTracks).forEach((key) => delete stemTracks[key]);
 }
@@ -71,6 +74,10 @@ function setupStemMixer(job) {
     const audio = new Audio();
     audio.preload = "auto";
     audio.src = `/api/stem?id=${encodeURIComponent(job.id)}&stem=${encodeURIComponent(name)}`;
+    audio.addEventListener("loadedmetadata", () => {
+      if (Number.isFinite(karaokeAudio.currentTime)) audio.currentTime = karaokeAudio.currentTime;
+      if (!karaokeAudio.paused) audio.play().catch(() => {});
+    });
     const row = document.createElement("div"); row.className = "stem-mixer-row";
     const mute = document.createElement("button"); mute.type = "button"; mute.className = "stem-mute"; mute.textContent = "MUTAR"; mute.setAttribute("aria-label", `Mutar ${stemLabels[name]}`);
     const label = document.createElement("span"); label.className = "stem-label"; label.textContent = stemLabels[name];
@@ -85,9 +92,22 @@ function setupStemMixer(job) {
 
 function syncStemTracks(play) {
   Object.values(stemTracks).forEach(({ audio }) => {
-    if (Math.abs(audio.currentTime - karaokeAudio.currentTime) > 0.18) audio.currentTime = karaokeAudio.currentTime;
+    if (Math.abs(audio.currentTime - karaokeAudio.currentTime) > 0.04) {
+      try { audio.currentTime = karaokeAudio.currentTime; } catch { /* metadata ainda não carregou */ }
+    }
     if (play) audio.play().catch(() => {}); else audio.pause();
   });
+  clearInterval(stemSyncTimer);
+  if (play && Object.keys(stemTracks).length) {
+    stemSyncTimer = setInterval(() => {
+      if (karaokeAudio.paused || karaokeAudio.ended) return;
+      Object.values(stemTracks).forEach(({ audio }) => {
+        if (Math.abs(audio.currentTime - karaokeAudio.currentTime) > 0.04) {
+          try { audio.currentTime = karaokeAudio.currentTime; } catch { /* aguarda loadedmetadata */ }
+        }
+      });
+    }, 180);
+  }
 }
 
 function filteredJobs() {
@@ -612,7 +632,7 @@ karaokeAudio.addEventListener("timeupdate", () => {
   if (Number.isFinite(karaokeAudio.duration) && karaokeAudio.duration > 0) {
     karaokeSeek.value = String(Math.round(karaokeAudio.currentTime / karaokeAudio.duration * 1000));
   }
-  Object.values(stemTracks).forEach(({ audio }) => { if (Math.abs(audio.currentTime - karaokeAudio.currentTime) > 0.18) audio.currentTime = karaokeAudio.currentTime; });
+  Object.values(stemTracks).forEach(({ audio }) => { if (Math.abs(audio.currentTime - karaokeAudio.currentTime) > 0.04) audio.currentTime = karaokeAudio.currentTime; });
   updateSyncedLyrics();
 });
 karaokeAudio.addEventListener("ended", nextKaraokeSong);
