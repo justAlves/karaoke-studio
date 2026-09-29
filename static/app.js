@@ -32,6 +32,10 @@ const karaokeSeek = document.querySelector("#karaoke-seek");
 const karaokeCurrentTime = document.querySelector("#karaoke-current-time");
 const karaokeDuration = document.querySelector("#karaoke-duration");
 const karaokeNext = document.querySelector("#karaoke-next");
+const stemMixer = document.querySelector("#stem-mixer");
+const stemMixerList = document.querySelector("#stem-mixer-list");
+const stemLabels = { backing_vocals: "Backing vocal", drums: "Bateria", bass: "Baixo", guitar: "Guitarra", piano: "Piano", other: "Outros instrumentos" };
+const stemTracks = {};
 let activePreview = null;
 let pendingSelection = null;
 let queueJobs = [];
@@ -51,6 +55,39 @@ function showKaraokeControls() {
 
 function keepKaraokeControlsVisible() {
   showKaraokeControls();
+}
+
+function stopStemTracks() {
+  Object.values(stemTracks).forEach((track) => { track.audio.pause(); track.audio.removeAttribute("src"); track.audio.load(); });
+  Object.keys(stemTracks).forEach((key) => delete stemTracks[key]);
+}
+
+function setupStemMixer(job) {
+  stopStemTracks();
+  stemMixerList.replaceChildren();
+  const available = job.instruments && Object.keys(job.instruments).length ? ["backing_vocals", "drums", "bass", "guitar", "piano", "other"] : [];
+  stemMixer.hidden = !available.length;
+  available.forEach((name) => {
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.src = `/api/stem?id=${encodeURIComponent(job.id)}&stem=${encodeURIComponent(name)}`;
+    const row = document.createElement("div"); row.className = "stem-mixer-row";
+    const mute = document.createElement("button"); mute.type = "button"; mute.className = "stem-mute"; mute.textContent = "MUTAR"; mute.setAttribute("aria-label", `Mutar ${stemLabels[name]}`);
+    const label = document.createElement("span"); label.className = "stem-label"; label.textContent = stemLabels[name];
+    const volume = document.createElement("input"); volume.type = "range"; volume.min = "0"; volume.max = "1"; volume.step = "0.01"; volume.value = name === "backing_vocals" ? "0.78" : "1"; volume.setAttribute("aria-label", `Volume de ${stemLabels[name]}`);
+    audio.volume = Number(volume.value);
+    mute.addEventListener("click", () => { const muted = audio.volume > 0; audio.volume = muted ? 0 : Number(volume.value) || 1; mute.classList.toggle("muted", muted); mute.textContent = muted ? "ATIVAR" : "MUTAR"; });
+    volume.addEventListener("input", () => { audio.volume = Number(volume.value); mute.classList.toggle("muted", audio.volume === 0); });
+    row.append(mute, label, volume); stemMixerList.append(row); stemTracks[name] = { audio, volume };
+  });
+  karaokeAudio.volume = available.length ? 0 : 1;
+}
+
+function syncStemTracks(play) {
+  Object.values(stemTracks).forEach(({ audio }) => {
+    if (Math.abs(audio.currentTime - karaokeAudio.currentTime) > 0.18) audio.currentTime = karaokeAudio.currentTime;
+    if (play) audio.play().catch(() => {}); else audio.pause();
+  });
 }
 
 function filteredJobs() {
@@ -89,6 +126,7 @@ function renderQueue(jobs) {
     queued: "Aguardando", downloading: "Baixando", preparing_audio: "Preparando áudio",
     separating_instrumental: "Separando instrumental",
     separating_backing: "Separando vozes",
+    separating_instruments: "Separando instrumentos",
     analyzing_key: "Identificando tonalidade",
     preparing_karaoke: "Montando karaokê", fetching_metadata: "Buscando letra e capa",
     ready: "Pronta para cantar", error: "Falha no processamento",
@@ -491,6 +529,7 @@ function loadKaraokeSong() {
   karaokeDuration.textContent = "0:00";
   karaokeSeek.value = "0";
   karaokeLyrics.classList.remove("plain-lyrics");
+  setupStemMixer(job);
   karaokeAudio.src = `/api/karaoke?id=${encodeURIComponent(job.id)}`;
   karaokeAudio.load();
   renderLyrics();
@@ -517,6 +556,8 @@ function closeKaraoke() {
   karaokeAudio.pause();
   karaokeAudio.removeAttribute("src");
   karaokeAudio.load();
+  stopStemTracks();
+  stemMixer.hidden = true;
   karaokeScreen.hidden = true;
   document.body.classList.remove("karaoke-open");
   playlist = [];
@@ -562,15 +603,16 @@ karaokeToggle.addEventListener("click", () => {
     karaokeAudio.pause();
   }
 });
-karaokeAudio.addEventListener("play", () => { karaokeToggle.textContent = "Ⅱ Pausar"; });
+karaokeAudio.addEventListener("play", () => { karaokeToggle.textContent = "Ⅱ Pausar"; syncStemTracks(true); });
 karaokeAudio.addEventListener("play", showKaraokeControls);
-karaokeAudio.addEventListener("pause", () => { karaokeToggle.textContent = "▶ Reproduzir"; showKaraokeControls(); });
+karaokeAudio.addEventListener("pause", () => { karaokeToggle.textContent = "▶ Reproduzir"; syncStemTracks(false); showKaraokeControls(); });
 karaokeAudio.addEventListener("loadedmetadata", () => { karaokeDuration.textContent = formatDuration(karaokeAudio.duration); });
 karaokeAudio.addEventListener("timeupdate", () => {
   karaokeCurrentTime.textContent = formatDuration(karaokeAudio.currentTime);
   if (Number.isFinite(karaokeAudio.duration) && karaokeAudio.duration > 0) {
     karaokeSeek.value = String(Math.round(karaokeAudio.currentTime / karaokeAudio.duration * 1000));
   }
+  Object.values(stemTracks).forEach(({ audio }) => { if (Math.abs(audio.currentTime - karaokeAudio.currentTime) > 0.18) audio.currentTime = karaokeAudio.currentTime; });
   updateSyncedLyrics();
 });
 karaokeAudio.addEventListener("ended", nextKaraokeSong);
@@ -581,6 +623,7 @@ karaokeSeek.addEventListener("input", () => {
   keepKaraokeControlsVisible();
   if (Number.isFinite(karaokeAudio.duration) && karaokeAudio.duration > 0) {
     karaokeAudio.currentTime = Number(karaokeSeek.value) / 1000 * karaokeAudio.duration;
+    Object.values(stemTracks).forEach(({ audio }) => { audio.currentTime = karaokeAudio.currentTime; });
   }
 });
 karaokeScreen.addEventListener("pointermove", keepKaraokeControlsVisible);

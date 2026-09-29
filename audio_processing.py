@@ -1,4 +1,4 @@
-"""Separação em três fontes e estimativa de tonalidade."""
+"""Separação vocal/instrumental, stems instrumentais e estimativa de tonalidade."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ STEM_DIR = ROOT / "stems"
 MODEL_DIR = ROOT / "models"
 VOCAL_MODEL = "UVR-MDX-NET-Inst_HQ_5.onnx"
 BACKING_MODEL = "UVR-BVE-4B_SN-44100-2.pth"
+INSTRUMENT_MODEL = "htdemucs_6s.yaml"
 VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 PITCH_NAMES = ("Dó", "Dó♯", "Ré", "Mi♭", "Mi", "Fá", "Fá♯", "Sol", "Lá♭", "Lá", "Si♭", "Si")
@@ -64,6 +65,8 @@ def separate_and_analyze(source: Path, video_id: str, on_stage: Callable[[str], 
     vocals = target / "vocals.flac"
     lead = target / "lead_vocals.flac"
     backing = target / "backing_vocals.flac"
+    instrument_names = ("drums", "bass", "guitar", "piano", "other")
+    instrument_paths = {name: target / f"{name}.flac" for name in instrument_names}
 
     if not (_complete(instrumental) and _complete(vocals)):
         on_stage("preparing_audio")
@@ -88,7 +91,7 @@ def separate_and_analyze(source: Path, video_id: str, on_stage: Callable[[str], 
             gc.collect()
         if not (_complete(instrumental) and _complete(vocals)):
             raise RuntimeError("A separação de instrumental e vocais não gerou os arquivos esperados.")
-        prepared.unlink(missing_ok=True)
+
 
     if not (_complete(lead) and _complete(backing)):
         on_stage("separating_backing")
@@ -104,6 +107,30 @@ def separate_and_analyze(source: Path, video_id: str, on_stage: Callable[[str], 
         if not (_complete(lead) and _complete(backing)):
             raise RuntimeError("A separação de voz principal e apoio não gerou os arquivos esperados.")
 
+    if not all(_complete(path) for path in instrument_paths.values()):
+        on_stage("separating_instruments")
+        prepared = target / "source.wav"
+        if not _complete(prepared):
+            temporary = target / "source.tmp.wav"
+            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(source), "-vn", "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(temporary)]
+            process = subprocess.run(command, capture_output=True, timeout=600, check=False)
+            if process.returncode or not _complete(temporary):
+                raise RuntimeError(f"Não foi possível preparar os instrumentos: {process.stderr.decode(errors='replace')[-300:]}")
+            os.replace(temporary, prepared)
+        separator = _separator(target)
+        try:
+            separator.load_model(INSTRUMENT_MODEL)
+            separator.separate(str(prepared), {
+                "Drums": "drums", "Bass": "bass", "Guitar": "guitar",
+                "Piano": "piano", "Other": "other", "Vocals": "demucs_vocals",
+            })
+        finally:
+            del separator
+            gc.collect()
+        if not all(_complete(path) for path in instrument_paths.values()):
+            raise RuntimeError("A separação dos instrumentos não gerou todos os stems esperados.")
+        prepared.unlink(missing_ok=True)
+
     on_stage("analyzing_key")
     key = estimate_key(instrumental)
     return {
@@ -113,6 +140,7 @@ def separate_and_analyze(source: Path, video_id: str, on_stage: Callable[[str], 
             "backing_vocals": f"{video_id}/backing_vocals.flac",
         },
         "key": key,
+        "instruments": {name: f"{video_id}/{name}.flac" for name in instrument_names},
     }
 
 

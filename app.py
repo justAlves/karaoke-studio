@@ -287,6 +287,28 @@ class Handler(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 pass
             return
+        if route == "/api/stem":
+            parameters = parse_qs(parsed.query)
+            video_id = parameters.get("id", [""])[0]
+            stem = parameters.get("stem", [""])[0]
+            allowed_stems = {"drums", "bass", "guitar", "piano", "other", "backing_vocals"}
+            if not VIDEO_ID.fullmatch(video_id) or stem not in allowed_stems:
+                self.send_json({"error": "Faixa inválida."}, 400)
+                return
+            job = next((item for item in DOWNLOAD_QUEUE.list_jobs() if item["id"] == video_id), None)
+            path = ROOT / "stems" / video_id / f"{stem}.flac"
+            if not path.is_file() and job:
+                key = (job.get("storage") or {}).get(stem)
+                if key:
+                    DOWNLOAD_QUEUE.cloud.download(key, path)
+            if not job or job.get("status") != "ready" or not path.is_file():
+                self.send_json({"error": "Faixa ainda não disponível."}, 404)
+                return
+            try:
+                self.send_audio(path)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
         if route == "/api/preview":
             video_id = parse_qs(parsed.query).get("id", [""])[0]
             if not VIDEO_ID.fullmatch(video_id):

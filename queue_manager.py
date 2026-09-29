@@ -159,7 +159,12 @@ class DownloadQueue:
                     stems.get(name) == f"{video_id}/{name}.flac" and (ROOT / "stems" / video_id / f"{name}.flac").is_file()
                     for name in ("instrumental", "lead_vocals", "backing_vocals")
                 )
-                if not stems_ready or "key" not in previous:
+                instruments = previous.get("instruments") or {}
+                instruments_ready = all(
+                    instruments.get(name) == f"{video_id}/{name}.flac" and (ROOT / "stems" / video_id / f"{name}.flac").is_file()
+                    for name in ("drums", "bass", "guitar", "piano", "other")
+                )
+                if not stems_ready or not instruments_ready or "key" not in previous:
                     results = separate_and_analyze(source, video_id, lambda stage: self._set(video_id, status=stage))
                     self._set(video_id, **results)
 
@@ -193,6 +198,8 @@ class DownloadQueue:
             return
         assets = {"original": source}
         for name in ("instrumental", "lead_vocals", "backing_vocals"):
+            assets[name] = ROOT / "stems" / video_id / f"{name}.flac"
+        for name in ("drums", "bass", "guitar", "piano", "other"):
             assets[name] = ROOT / "stems" / video_id / f"{name}.flac"
         assets["karaoke"] = ROOT / "stems" / video_id / "karaoke.m4a"
         uploaded = {}
