@@ -34,7 +34,7 @@ KARAOKE_HOST=karaoke.exemplo.com docker compose up -d --build
 
 Para proteger a sessão com senha no Coolify, crie as variáveis `KARAOKE_PASSWORD` e `KARAOKE_AUTH_SECRET` no painel. A senha é solicitada na primeira abertura e a autenticação fica em um cookie HttpOnly. Em produção atrás de HTTPS, mantenha `KARAOKE_COOKIE_SECURE=true`.
 
-No Coolify, defina também `KARAOKE_PUBLIC_URL` com a URL completa da aplicação, por exemplo `https://karaoke.exemplo.com`. Essa URL será usada no QR Code e no convite da sessão.
+No Coolify, defina também `KARAOKE_PUBLIC_URL` com a URL completa da aplicação, por exemplo `https://karaoke.exemplo.com`. Essa URL será usada no QR Code e no convite da sessão. Use `KARAOKE_COOKIE_SECURE=true` somente quando o acesso estiver em HTTPS; para acesso direto por IP e HTTP, deixe `false`.
 
 ### R2 e Firestore
 
