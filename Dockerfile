@@ -2,10 +2,12 @@ FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    KARAOKE_BIND=0.0.0.0
+    KARAOKE_BIND=0.0.0.0 \
+    DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update -o Acquire::Retries=5 \
-    && apt-get install -y --no-install-recommends \
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update -o Acquire::Retries=5 -o Acquire::http::Pipeline-Depth=0 \
+    && apt-get install -y --no-install-recommends -o Acquire::Retries=5 \
         build-essential \
         ffmpeg \
         libsndfile1 \
