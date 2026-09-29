@@ -47,6 +47,14 @@ let controlsTimer = null;
 let stemSyncTimer = null;
 let activeMixJob = null;
 let mixReloadTimer = null;
+let webAudioContext = null;
+let webAudioBuffers = {};
+let webAudioSources = {};
+let webAudioStartedAt = 0;
+let webAudioOffset = 0;
+let webAudioDuration = 0;
+let webAudioPlaying = false;
+let webAudioTimer = null;
 
 function showKaraokeControls() {
   karaokeScreen.classList.remove("controls-idle");
@@ -67,6 +75,55 @@ function stopStemTracks() {
   Object.keys(stemTracks).forEach((key) => delete stemTracks[key]);
 }
 
+function stopWebAudio() {
+  clearInterval(webAudioTimer); webAudioTimer = null;
+  Object.values(webAudioSources).forEach(({ source }) => { try { source.stop(); } catch {} });
+  webAudioSources = {}; webAudioPlaying = false; webAudioOffset = 0;
+}
+
+function webAudioTime() {
+  return webAudioPlaying ? Math.min(webAudioDuration, webAudioOffset + webAudioContext.currentTime - webAudioStartedAt) : webAudioOffset;
+}
+
+function startWebAudioSources(offset = webAudioOffset) {
+  stopWebAudio();
+  const now = webAudioContext.currentTime + 0.06;
+  webAudioStartedAt = now; webAudioOffset = offset; webAudioPlaying = true;
+  Object.entries(webAudioBuffers).forEach(([name, buffer]) => {
+    const source = webAudioContext.createBufferSource();
+    const gain = webAudioContext.createGain();
+    source.buffer = buffer; source.connect(gain).connect(webAudioContext.destination);
+    const item = stemTracks[name];
+    gain.gain.value = item?.muted ? 0 : Number(item?.volume.value || 1);
+    source.start(now, offset); webAudioSources[name] = { source, gain };
+  });
+  webAudioTimer = setInterval(() => {
+    const current = webAudioTime();
+    karaokeCurrentTime.textContent = formatDuration(current);
+    karaokeSeek.value = webAudioDuration ? String(Math.round(current / webAudioDuration * 1000)) : "0";
+    updateSyncedLyrics(false, current);
+    if (current >= webAudioDuration - 0.05) { stopWebAudio(); nextKaraokeSong(); }
+  }, 80);
+}
+
+async function loadWebAudioSong(job) {
+  if (!window.AudioContext && !window.webkitAudioContext) return false;
+  webAudioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+  await webAudioContext.resume();
+  const names = Object.keys(stemTracks);
+  const decoded = await Promise.all(names.map(async (name) => {
+    const response = await fetch(`/api/stem?id=${encodeURIComponent(job.id)}&stem=${encodeURIComponent(name)}`);
+    if (!response.ok) throw new Error("Stem indisponível");
+    return [name, await webAudioContext.decodeAudioData(await response.arrayBuffer())];
+  }));
+  webAudioBuffers = Object.fromEntries(decoded);
+  webAudioDuration = Math.max(...Object.values(webAudioBuffers).map((buffer) => buffer.duration));
+  karaokeAudio.removeAttribute("src"); karaokeAudio.load(); karaokeAudio.volume = 0;
+  karaokeDuration.textContent = formatDuration(webAudioDuration);
+  startWebAudioSources(0);
+  return true;
+}
+
 function setupStemMixer(job) {
   stopStemTracks();
   stemMixerList.replaceChildren();
@@ -80,8 +137,8 @@ function setupStemMixer(job) {
     const label = document.createElement("span"); label.className = "stem-label"; label.textContent = stemLabels[name];
     const volume = document.createElement("input"); volume.type = "range"; volume.min = "0"; volume.max = "1"; volume.step = "0.01"; volume.value = name === "backing_vocals" ? "0.78" : "1"; volume.setAttribute("aria-label", `Volume de ${stemLabels[name]}`);
     const item = { audio, volume, muted: false };
-    mute.addEventListener("click", () => { item.muted = !item.muted; mute.classList.toggle("muted", item.muted); mute.textContent = item.muted ? "ATIVAR" : "MUTAR"; scheduleMixReload(); });
-    volume.addEventListener("input", () => { item.muted = false; mute.classList.remove("muted"); scheduleMixReload(); });
+    mute.addEventListener("click", () => { item.muted = !item.muted; mute.classList.toggle("muted", item.muted); mute.textContent = item.muted ? "ATIVAR" : "MUTAR"; const track = webAudioSources[name]; if (track) track.gain.gain.value = item.muted ? 0 : Number(volume.value); });
+    volume.addEventListener("input", () => { item.muted = false; mute.classList.remove("muted"); const track = webAudioSources[name]; if (track) track.gain.gain.value = Number(volume.value); });
     row.append(mute, label, volume); stemMixerList.append(row); stemTracks[name] = item;
   });
   karaokeAudio.volume = 1;
@@ -526,10 +583,10 @@ function renderLyrics() {
   updateSyncedLyrics(true);
 }
 
-function updateSyncedLyrics(force = false) {
+function updateSyncedLyrics(force = false, clock = null) {
   const lines = playlist[playlistIndex]?.lyrics?.lines;
   if (!lines?.length || !playlist[playlistIndex].lyrics.synced) return;
-  const now = karaokeAudio.currentTime;
+  const now = clock == null ? karaokeAudio.currentTime : clock;
   let low = 0;
   let high = lines.length;
   while (low < high) {
@@ -569,8 +626,13 @@ function loadKaraokeSong() {
   karaokeLyrics.classList.remove("plain-lyrics");
   setupStemMixer(job);
   activeMixJob = job;
-  karaokeAudio.src = stemMixer.hidden ? `/api/karaoke?id=${encodeURIComponent(job.id)}` : mixUrl(job);
-  karaokeAudio.load();
+  stopWebAudio();
+  if (!stemMixer.hidden) {
+    loadWebAudioSong(job).then(() => { karaokeToggle.textContent = "Ⅱ Pausar"; }).catch(() => { karaokeAudio.volume = 1; karaokeAudio.src = `/api/karaoke?id=${encodeURIComponent(job.id)}`; karaokeAudio.load(); karaokeAudio.play().catch(() => {}); });
+  } else {
+    karaokeAudio.src = `/api/karaoke?id=${encodeURIComponent(job.id)}`;
+    karaokeAudio.load();
+  }
   renderLyrics();
   karaokeAudio.play().catch(() => {
     karaokeNote.textContent = "Não foi possível iniciar o áudio. Clique em Reproduzir para tentar novamente.";
@@ -593,6 +655,7 @@ function closeKaraoke() {
   clearTimeout(controlsTimer);
   karaokeScreen.classList.remove("controls-idle");
   karaokeAudio.pause();
+  stopWebAudio();
   karaokeAudio.removeAttribute("src");
   karaokeAudio.load();
   activeMixJob = null;
@@ -636,6 +699,11 @@ document.querySelector("#karaoke-fullscreen").addEventListener("click", async ()
 });
 karaokeNext.addEventListener("click", nextKaraokeSong);
 karaokeToggle.addEventListener("click", () => {
+  if (!stemMixer.hidden && webAudioContext) {
+    if (webAudioPlaying) { webAudioOffset = webAudioTime(); stopWebAudio(); karaokeToggle.textContent = "▶ Reproduzir"; }
+    else { startWebAudioSources(webAudioOffset); karaokeToggle.textContent = "Ⅱ Pausar"; }
+    return;
+  }
   if (karaokeAudio.paused) {
     if (karaokeAudio.ended) karaokeAudio.currentTime = 0;
     karaokeAudio.play().catch(() => { karaokeNote.textContent = "Não foi possível reproduzir este áudio."; });
@@ -661,6 +729,11 @@ karaokeAudio.addEventListener("error", () => {
 });
 karaokeSeek.addEventListener("input", () => {
   keepKaraokeControlsVisible();
+  if (!stemMixer.hidden && webAudioContext && webAudioBuffers && Object.keys(webAudioBuffers).length) {
+    webAudioOffset = Number(karaokeSeek.value) / 1000 * webAudioDuration;
+    if (webAudioPlaying) startWebAudioSources(webAudioOffset);
+    return;
+  }
   if (Number.isFinite(karaokeAudio.duration) && karaokeAudio.duration > 0) {
     karaokeAudio.currentTime = Number(karaokeSeek.value) / 1000 * karaokeAudio.duration;
     Object.values(stemTracks).forEach(({ audio }) => { audio.currentTime = karaokeAudio.currentTime; });
