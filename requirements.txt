@@ -1,0 +1,4 @@
+yt-dlp>=2026.8.19
+audio-separator[cpu]==0.47.0
+audioread>=3.0
+qrcode[pil]>=8.2

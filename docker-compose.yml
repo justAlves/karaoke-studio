@@ -1,0 +1,22 @@
+services:
+  karaoke-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: karaoke-studio
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      KARAOKE_HOST: "${KARAOKE_HOST:-}"
+    volumes:
+      - karaoke-data:/app/data
+      - karaoke-downloads:/app/downloads
+      - karaoke-models:/app/models
+      - karaoke-stems:/app/stems
+
+volumes:
+  karaoke-data:
+  karaoke-downloads:
+  karaoke-models:
+  karaoke-stems:

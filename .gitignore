@@ -1,0 +1,8 @@
+.venv/
+.venv-gpu/
+__pycache__/
+*.py[cod]
+data/
+downloads/
+models/
+stems/

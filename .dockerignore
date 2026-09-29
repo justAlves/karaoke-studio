@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv
+.venv-gpu
+__pycache__
+*.pyc
+data
+downloads
+models
+stems
+tests
+tmp

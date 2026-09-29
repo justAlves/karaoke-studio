@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0c0d15" />
+    <title>Karaoke Studio — encontre sua música</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="Karaoke Studio, início">
+          <span class="brand-mark" aria-hidden="true">♫</span>
+          <span>Karaoke<span class="brand-accent">Studio</span></span>
+        </a>
+        <span class="header-tag">Seu palco começa aqui <span aria-hidden="true">✦</span></span>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <div class="eyebrow"><span class="eyebrow-dot"></span> ESTÚDIO DE KARAOKÊ</div>
+            <h1 id="hero-title">Encontre a música.<br /><em>Prepare o palco.</em></h1>
+            <p class="hero-description">Cole um link do YouTube ou busque pelo nome da música. Escolha a versão certa para começar seu karaokê.</p>
+            <form id="search-form" class="search-form" autocomplete="off">
+              <label class="sr-only" for="query">URL do YouTube ou título da música</label>
+              <span class="search-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><circle cx="10.8" cy="10.8" r="6.7" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.2 4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </span>
+              <input id="query" name="query" type="search" maxlength="300" required placeholder="Ex.: Evidências ou youtube.com/watch?v=..." />
+              <button id="search-button" type="submit">Buscar <span aria-hidden="true">→</span></button>
+            </form>
+            <p class="search-hint">Busque por artista e título para encontrar versões específicas.</p>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="art-glow"></div>
+            <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+            <div class="record"><div class="record-rings"></div><div class="record-label"><span>KS</span><small>SIDE A</small></div></div>
+            <div class="floating-note note-one">♪</div><div class="floating-note note-two">♫</div>
+            <div class="art-caption"><span class="caption-wave">▂▄▆▄▂ ▃▆▅▂</span><span>ENCONTRE SEU SOM</span></div>
+          </div>
+        </section>
+
+        <section class="results-section" aria-labelledby="results-title">
+          <div class="section-head">
+            <div><p class="section-kicker">SUA BUSCA</p><h2 id="results-title">Resultados</h2></div>
+            <span id="result-count" class="result-count" hidden></span>
+          </div>
+          <p id="status" class="status" role="status" aria-live="polite">Os resultados aparecerão aqui depois da sua busca.</p>
+          <div id="results" class="results-list"></div>
+        </section>
+
+        <section id="queue-section" class="queue-section" aria-labelledby="queue-title" hidden>
+          <div class="section-head">
+            <div><p class="section-kicker">PRÓXIMA ETAPA</p><h2 id="queue-title">Fila de músicas</h2></div>
+            <div class="queue-head-actions"><span id="queue-count" class="result-count"></span><button id="play-all" class="play-all-button" type="button" disabled>▶ Tocar toda a fila</button></div>
+          </div>
+          <p class="queue-description">Depois do processamento, cada música fica pronta para cantar com instrumental, vozes de apoio e letra.</p>
+          <div class="queue-tools"><label>Mostrar <select id="queue-filter"><option value="all">Todas</option><option value="ready">Prontas</option><option value="favorite">Favoritas</option></select></label><label>Gênero <select id="genre-filter"><option value="all">Todos</option></select></label><button id="party-mode" class="party-button" type="button">🎲 Modo festa</button></div>
+          <div class="session-share"><div><p class="session-kicker">CONVIDE A GALERA</p><strong>Adicione músicas pelo celular</strong><p>Todos na mesma rede podem abrir este endereço e colocar músicas na fila.</p><div class="session-url-row"><input id="session-url" type="text" readonly aria-label="Endereço da sessão" /><button id="copy-session" type="button">Copiar link</button></div></div><div class="session-qr-actions"><img id="session-qr" class="session-qr" alt="QR Code para entrar na sessão" /><button id="open-qr" class="open-qr-button" type="button">Ampliar QR Code</button></div></div>
+          <div id="queue-list" class="queue-list" aria-live="polite"></div>
+        </section>
+      </main>
+
+      <footer class="site-footer"><span>♫ Karaoke Studio</span><span>Encontre sua próxima música favorita.</span></footer>
+    </div>
+    <section id="karaoke-screen" class="karaoke-screen" aria-label="Karaokê" hidden>
+      <div id="karaoke-backdrop" class="karaoke-backdrop" aria-hidden="true"></div>
+      <div class="karaoke-shade" aria-hidden="true"></div>
+      <div class="karaoke-content">
+        <header class="karaoke-topbar">
+          <div class="karaoke-song"><span id="karaoke-position" class="karaoke-position"></span><strong id="karaoke-title"></strong><span id="karaoke-artist"></span></div>
+          <div class="karaoke-top-actions"><button id="karaoke-fullscreen" class="karaoke-fullscreen" type="button">⛶ Tela cheia</button><button id="karaoke-close" class="karaoke-close" type="button" aria-label="Fechar karaokê">✕</button></div>
+        </header>
+        <div class="karaoke-center">
+          <img id="karaoke-cover" class="karaoke-cover" alt="Capa do álbum" />
+          <div id="karaoke-lyrics" class="karaoke-lyrics" aria-live="off"></div>
+          <p id="karaoke-note" class="karaoke-note"></p>
+        </div>
+        <div class="karaoke-controls">
+          <div class="karaoke-timeline"><span id="karaoke-current-time">0:00</span><input id="karaoke-seek" type="range" min="0" max="1000" value="0" aria-label="Posição da música" /><span id="karaoke-duration">0:00</span></div>
+          <div class="karaoke-buttons"><button id="karaoke-toggle" type="button">Ⅱ Pausar</button><button id="karaoke-next" type="button">Próxima →</button></div>
+        </div>
+      </div>
+      <audio id="karaoke-audio" preload="metadata"></audio>
+    </section>
+    <dialog id="qr-dialog" class="qr-dialog" aria-labelledby="qr-dialog-title"><div class="qr-dialog-card"><button id="close-qr" class="qr-dialog-close" type="button" aria-label="Fechar QR Code">✕</button><p class="session-kicker">ENTRAR NA SESSÃO</p><h2 id="qr-dialog-title">Escaneie para adicionar músicas</h2><img id="qr-dialog-image" alt="QR Code ampliado para entrar na sessão" /><p>Use a câmera do celular conectado à mesma rede Wi-Fi.</p></div></dialog>
+  </body>
+</html>
