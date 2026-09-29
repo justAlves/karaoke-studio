@@ -276,8 +276,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "Música inválida."}, 400)
                 return
             job = next((item for item in DOWNLOAD_QUEUE.list_jobs() if item["id"] == video_id), None)
-            path = ROOT / "stems" / video_id / "karaoke.m4a"
-            if not job or job["status"] != "ready" or job.get("karaoke_audio") != f"{video_id}/karaoke.m4a" or not path.is_file():
+            path = DOWNLOAD_QUEUE.ensure_karaoke_local(video_id)
+            if not job or job["status"] != "ready" or job.get("karaoke_audio") != f"{video_id}/karaoke.m4a" or not path or not path.is_file():
                 self.send_json({"error": "Karaokê ainda não disponível."}, 404)
                 return
             try:

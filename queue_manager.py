@@ -10,6 +10,7 @@ from queue import Queue
 from threading import Lock, Thread
 
 from yt_dlp import YoutubeDL
+from cloud_storage import CloudStorage
 
 
 ROOT = Path(__file__).resolve().parent
@@ -25,10 +26,20 @@ class DownloadQueue:
         self.lock = Lock()
         self.pending: Queue[str] = Queue()
         self.jobs: dict[str, dict] = {}
+        self.cloud = CloudStorage()
         self._load()
         Thread(target=self._worker, daemon=True, name="audio-download-queue").start()
 
     def _load(self) -> None:
+        if not MANIFEST.exists() and self.cloud.firestore:
+            for job in self.cloud.load_jobs():
+                if isinstance(job, dict) and job.get("id"):
+                    self.jobs[job["id"]] = job
+            if self.jobs:
+                for video_id in self.jobs:
+                    if self.jobs[video_id].get("status") not in {"ready", "error"}:
+                        self.pending.put(video_id)
+                return
         if not MANIFEST.exists():
             return
         try:
@@ -38,14 +49,15 @@ class DownloadQueue:
                 if len(video_id) != 11 or not all(char.isalnum() or char in "_-" for char in video_id):
                     continue
                 filename = job.get("file")
-                source_ready = bool(filename and (DOWNLOAD_DIR / Path(filename).name).is_file())
+                storage = job.get("storage") or {}
+                source_ready = bool(filename and (DOWNLOAD_DIR / Path(filename).name).is_file()) or bool(storage.get("original") and self.cloud.exists(storage["original"]))
                 stems = job.get("stems")
                 expected = {name: f"{video_id}/{name}.flac" for name in ("instrumental", "lead_vocals", "backing_vocals")}
                 stems_ready = isinstance(stems, dict) and all(
                     stems.get(name) == relative and (ROOT / "stems" / relative).is_file()
                     for name, relative in expected.items()
-                )
-                karaoke_ready = job.get("karaoke_audio") == f"{video_id}/karaoke.m4a" and (ROOT / "stems" / video_id / "karaoke.m4a").is_file()
+                ) or all(storage.get(name) and self.cloud.exists(storage[name]) for name in expected)
+                karaoke_ready = (job.get("karaoke_audio") == f"{video_id}/karaoke.m4a" and (ROOT / "stems" / video_id / "karaoke.m4a").is_file()) or bool(storage.get("karaoke") and self.cloud.exists(storage["karaoke"]))
                 if job.get("status") == "ready" and source_ready and stems_ready and "key" in job and karaoke_ready and job.get("metadata_checked"):
                     self.jobs[video_id] = job
                     continue
@@ -62,6 +74,8 @@ class DownloadQueue:
         temporary = MANIFEST.with_suffix(".tmp")
         temporary.write_text(json.dumps(list(self.jobs.values()), ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temporary, MANIFEST)
+        for job in self.jobs.values():
+            self.cloud.sync_job(job)
 
     def list_jobs(self) -> list[dict]:
         with self.lock:
@@ -113,7 +127,7 @@ class DownloadQueue:
     def _set(self, video_id: str, **changes: object) -> None:
         with self.lock:
             self.jobs[video_id].update(changes)
-            if "status" in changes:
+            if "status" in changes or "storage" in changes:
                 self._save()
 
     def _worker(self) -> None:
@@ -124,10 +138,16 @@ class DownloadQueue:
                     filename = self.jobs[video_id].get("file")
                 source = DOWNLOAD_DIR / Path(filename).name if filename else None
                 if not source or not source.is_file():
-                    self._set(video_id, status="downloading", progress=0, error=None)
-                    filename = self._download(video_id)
-                    source = DOWNLOAD_DIR / filename
-                    self._set(video_id, status="separating_instrumental", progress=100, file=filename)
+                    with self.lock:
+                        remote = (self.jobs[video_id].get("storage") or {}).get("original")
+                    if remote and self.cloud.download(remote, DOWNLOAD_DIR / f"{video_id}.m4a"):
+                        filename = f"{video_id}.m4a"
+                        source = DOWNLOAD_DIR / filename
+                    else:
+                        self._set(video_id, status="downloading", progress=0, error=None)
+                        filename = self._download(video_id)
+                        source = DOWNLOAD_DIR / filename
+                        self._set(video_id, status="separating_instrumental", progress=100, file=filename)
 
                 from audio_processing import prepare_karaoke_audio, separate_and_analyze
 
@@ -153,6 +173,9 @@ class DownloadQueue:
                     duration = self._duration(source)
                     metadata = fetch_metadata(previous["title"], previous["channel"], duration)
                     self._set(video_id, **metadata)
+                with self.lock:
+                    current = self.jobs[video_id].copy()
+                self._upload_assets(video_id, source, current)
                 self._set(video_id, status="ready", progress=100, error=None)
             except Exception as error:
                 print(f"Processamento de {video_id} falhou: {error}")
@@ -163,6 +186,39 @@ class DownloadQueue:
                 self._set(video_id, status="error", error=message)
             finally:
                 self.pending.task_done()
+
+    def _upload_assets(self, video_id: str, source: Path, job: dict) -> None:
+        if not self.cloud.enabled:
+            return
+        assets = {"original": source}
+        for name in ("instrumental", "lead_vocals", "backing_vocals"):
+            assets[name] = ROOT / "stems" / video_id / f"{name}.flac"
+        assets["karaoke"] = ROOT / "stems" / video_id / "karaoke.m4a"
+        uploaded = {}
+        for name, path in assets.items():
+            suffix = path.suffix.lower()
+            content_type = "audio/mp4" if suffix in {".m4a", ".mp4"} else "audio/flac"
+            key = f"songs/{video_id}/{path.name}"
+            if self.cloud.upload(path, key, content_type):
+                uploaded[name] = key
+        if uploaded:
+            self._set(video_id, storage=uploaded)
+            if os.environ.get("CLOUD_CLEANUP_LOCAL", "").lower() in {"1", "true", "yes"}:
+                for path in assets.values():
+                    try:
+                        path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+
+    def ensure_karaoke_local(self, video_id: str) -> Path | None:
+        path = ROOT / "stems" / video_id / "karaoke.m4a"
+        if path.is_file():
+            return path
+        with self.lock:
+            key = (self.jobs.get(video_id, {}).get("storage") or {}).get("karaoke")
+        if key and self.cloud.download(key, path):
+            return path
+        return None
 
     @staticmethod
     def _duration(source: Path) -> float | None:

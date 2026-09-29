@@ -36,6 +36,16 @@ Para proteger a sessão com senha no Coolify, crie as variáveis `KARAOKE_PASSWO
 
 No Coolify, defina também `KARAOKE_PUBLIC_URL` com a URL completa da aplicação, por exemplo `https://karaoke.exemplo.com`. Essa URL será usada no QR Code e no convite da sessão.
 
+### R2 e Firestore
+
+O R2 é usado para armazenar os áudios e stems; o Firestore espelha os metadados da fila. No Coolify, adicione `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` e `FIREBASE_SERVICE_ACCOUNT_B64`. Para gerar a última variável:
+
+```bash
+base64 -w0 firebase-service-account.json
+```
+
+Cole o resultado como valor da variável no Coolify. As integrações são opcionais: sem essas variáveis, o sistema continua usando os diretórios locais.
+
 Se usar um IP, informe apenas o host, sem `http://` e sem a porta. Libere a porta 8000 no firewall ou use um proxy reverso HTTPS. Como a sessão não tem autenticação nesta versão, mantenha o serviço atrás de uma rede privada, VPN ou proteção de acesso quando ele estiver em um servidor público.
 
 ## Sessão compartilhada
