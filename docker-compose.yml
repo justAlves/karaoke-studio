@@ -18,6 +18,7 @@ services:
       R2_SECRET_ACCESS_KEY: "${R2_SECRET_ACCESS_KEY:-}"
       R2_BUCKET_NAME: "${R2_BUCKET_NAME:-}"
       FIREBASE_SERVICE_ACCOUNT_B64: "${FIREBASE_SERVICE_ACCOUNT_B64:-}"
+      CLOUD_CLEANUP_LOCAL: "${CLOUD_CLEANUP_LOCAL:-true}"
     volumes:
       - karaoke-data:/app/data
       - karaoke-downloads:/app/downloads

@@ -46,6 +46,8 @@ base64 -w0 firebase-service-account.json
 
 Cole o resultado como valor da variável no Coolify. As integrações são opcionais: sem essas variáveis, o sistema continua usando os diretórios locais.
 
+Defina `CLOUD_CLEANUP_LOCAL=true` para remover os arquivos locais depois do upload. O karaokê é baixado do R2 novamente quando alguém iniciar a música.
+
 Se usar um IP, informe apenas o host, sem `http://` e sem a porta. Libere a porta 8000 no firewall ou use um proxy reverso HTTPS. Como a sessão não tem autenticação nesta versão, mantenha o serviço atrás de uma rede privada, VPN ou proteção de acesso quando ele estiver em um servidor público.
 
 ## Sessão compartilhada
