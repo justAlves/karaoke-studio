@@ -1,10 +1,10 @@
-FROM python:3.14-slim
+FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     KARAOKE_BIND=0.0.0.0
 
-RUN apt-get update \
+RUN apt-get update -o Acquire::Retries=5 \
     && apt-get install -y --no-install-recommends \
         build-essential \
         ffmpeg \
