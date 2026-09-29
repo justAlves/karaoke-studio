@@ -24,7 +24,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
     && python -m pip install --no-cache-dir -r requirements.txt
 
-COPY app.py queue_manager.py audio_processing.py music_metadata.py cloud_storage.py ./
+COPY app.py queue_manager.py audio_processing.py music_metadata.py cloud_storage.py youtube_config.py ./
 COPY static ./static
 
 RUN mkdir -p data downloads models stems

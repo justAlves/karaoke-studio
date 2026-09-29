@@ -46,6 +46,14 @@ base64 -w0 firebase-service-account.json
 
 Cole o resultado como valor da variável no Coolify. As integrações são opcionais: sem essas variáveis, o sistema continua usando os diretórios locais.
 
+Se o YouTube bloquear o IP da VPS, exporte os cookies da sua conta em formato Netscape, codifique o arquivo e adicione o resultado como segredo `YOUTUBE_COOKIES_B64` no Coolify:
+
+```bash
+base64 -w0 youtube-cookies.txt
+```
+
+Os cookies devem ficar somente como variável de runtime e nunca como build argument ou arquivo no Git.
+
 Defina `CLOUD_CLEANUP_LOCAL=true` para remover os arquivos locais depois do upload. O karaokê é baixado do R2 novamente quando alguém iniciar a música.
 
 Se usar um IP, informe apenas o host, sem `http://` e sem a porta. Libere a porta 8010 no firewall ou use um proxy reverso HTTPS. Como a sessão não tem autenticação nesta versão, mantenha o serviço atrás de uma rede privada, VPN ou proteção de acesso quando ele estiver em um servidor público.

@@ -20,6 +20,7 @@ services:
       R2_BUCKET_NAME: "${R2_BUCKET_NAME:-}"
       FIREBASE_SERVICE_ACCOUNT_B64: "${FIREBASE_SERVICE_ACCOUNT_B64:-}"
       CLOUD_CLEANUP_LOCAL: "${CLOUD_CLEANUP_LOCAL:-true}"
+      YOUTUBE_COOKIES_B64: "${YOUTUBE_COOKIES_B64:-}"
     volumes:
       - karaoke-data:/app/data
       - karaoke-downloads:/app/downloads

@@ -11,6 +11,7 @@ from threading import Lock, Thread
 
 from yt_dlp import YoutubeDL
 from cloud_storage import CloudStorage
+from youtube_config import configure as configure_youtube
 
 
 ROOT = Path(__file__).resolve().parent
@@ -261,7 +262,7 @@ class DownloadQueue:
             "match_filter": reject_live,
             "progress_hooks": [progress_hook],
         }
-        with YoutubeDL(options) as ydl:
+        with YoutubeDL(configure_youtube(options)) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=True)
             filename = Path(ydl.prepare_filename(info))
         if not filename.is_file() or filename.stat().st_size == 0:

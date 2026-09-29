@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from queue_manager import DownloadQueue
+from youtube_config import configure as configure_youtube
 
 
 ROOT = Path(__file__).resolve().parent
@@ -102,7 +103,7 @@ def search_youtube(query: str) -> list[dict]:
         "socket_timeout": 12,
         "retries": 1,
     }
-    with YoutubeDL(options) as ydl:
+    with YoutubeDL(configure_youtube(options)) as ydl:
         info = ydl.extract_info(direct_url or f"ytsearch5:{query}", download=False)
 
     entries = [info] if direct_url else (info or {}).get("entries") or []
@@ -119,14 +120,14 @@ def preview_audio(video_id: str) -> bytes:
     if not shutil.which("ffmpeg"):
         raise RuntimeError("FFmpeg não está instalado.")
 
-    with YoutubeDL({
+    with YoutubeDL(configure_youtube({
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
         "format": "bestaudio[ext=m4a]/bestaudio/best",
         "socket_timeout": 12,
         "retries": 1,
-    }) as ydl:
+    })) as ydl:
         info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
 
     duration = info.get("duration")
