@@ -58,8 +58,13 @@ class DownloadQueue:
                     stems.get(name) == relative and (ROOT / "stems" / relative).is_file()
                     for name, relative in expected.items()
                 ) or all(storage.get(name) and self.cloud.exists(storage[name]) for name in expected)
+                instruments = job.get("instruments") or {}
+                instruments_ready = all(
+                    instruments.get(name) == f"{video_id}/{name}.flac" and (ROOT / "stems" / video_id / f"{name}.flac").is_file()
+                    for name in ("drums", "bass", "guitar", "piano", "other")
+                ) or all(storage.get(name) and self.cloud.exists(storage[name]) for name in ("drums", "bass", "guitar", "piano", "other"))
                 karaoke_ready = (job.get("karaoke_audio") == f"{video_id}/karaoke.m4a" and (ROOT / "stems" / video_id / "karaoke.m4a").is_file()) or bool(storage.get("karaoke") and self.cloud.exists(storage["karaoke"]))
-                if job.get("status") == "ready" and source_ready and stems_ready and "key" in job and karaoke_ready and job.get("metadata_checked"):
+                if job.get("status") == "ready" and source_ready and stems_ready and instruments_ready and "key" in job and karaoke_ready and job.get("metadata_checked"):
                     self.jobs[video_id] = job
                     continue
                 if job.get("status") == "error":
