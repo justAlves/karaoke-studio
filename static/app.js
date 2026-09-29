@@ -34,7 +34,8 @@ const karaokeDuration = document.querySelector("#karaoke-duration");
 const karaokeNext = document.querySelector("#karaoke-next");
 const stemMixer = document.querySelector("#stem-mixer");
 const stemMixerList = document.querySelector("#stem-mixer-list");
-const stemLabels = { backing_vocals: "Backing vocal", drums: "Bateria", bass: "Baixo", guitar: "Guitarra", piano: "Piano", other: "Outros instrumentos" };
+const stemSettings = document.querySelector("#stem-settings");
+const stemLabels = { lead_vocals: "Voz principal", backing_vocals: "Backing vocal", drums: "Bateria", bass: "Baixo", guitar: "Guitarra", piano: "Piano", other: "Outros instrumentos" };
 const stemTracks = {};
 let activePreview = null;
 let pendingSelection = null;
@@ -55,6 +56,7 @@ let webAudioOffset = 0;
 let webAudioDuration = 0;
 let webAudioPlaying = false;
 let webAudioTimer = null;
+let mixerAvailable = false;
 
 function showKaraokeControls() {
   karaokeScreen.classList.remove("controls-idle");
@@ -127,21 +129,33 @@ async function loadWebAudioSong(job) {
 function setupStemMixer(job) {
   stopStemTracks();
   stemMixerList.replaceChildren();
-  const available = job.instruments && Object.keys(job.instruments).length ? ["backing_vocals", "drums", "bass", "guitar", "piano", "other"] : [];
+  const available = job.instruments && Object.keys(job.instruments).length ? ["lead_vocals", "backing_vocals", "drums", "bass", "guitar", "piano", "other"] : [];
+  mixerAvailable = Boolean(available.length);
   stemMixer.hidden = !available.length;
   available.forEach((name) => {
     const audio = new Audio();
     audio.preload = "auto";
     const row = document.createElement("div"); row.className = "stem-mixer-row";
     const mute = document.createElement("button"); mute.type = "button"; mute.className = "stem-mute"; mute.textContent = "MUTAR"; mute.setAttribute("aria-label", `Mutar ${stemLabels[name]}`);
+    const solo = document.createElement("button"); solo.type = "button"; solo.className = "stem-solo"; solo.textContent = "SOLO"; solo.setAttribute("aria-label", `Solo de ${stemLabels[name]}`);
     const label = document.createElement("span"); label.className = "stem-label"; label.textContent = stemLabels[name];
     const volume = document.createElement("input"); volume.type = "range"; volume.min = "0"; volume.max = "1"; volume.step = "0.01"; volume.value = name === "backing_vocals" ? "0.78" : "1"; volume.setAttribute("aria-label", `Volume de ${stemLabels[name]}`);
-    const item = { audio, volume, muted: false };
+    const item = { audio, volume, muted: name === "lead_vocals", solo: false, muteButton: mute, soloButton: solo };
+    if (item.muted) mute.classList.add("muted");
     mute.addEventListener("click", () => { item.muted = !item.muted; mute.classList.toggle("muted", item.muted); mute.textContent = item.muted ? "ATIVAR" : "MUTAR"; const track = webAudioSources[name]; if (track) track.gain.gain.value = item.muted ? 0 : Number(volume.value); });
     volume.addEventListener("input", () => { item.muted = false; mute.classList.remove("muted"); const track = webAudioSources[name]; if (track) track.gain.gain.value = Number(volume.value); });
-    row.append(mute, label, volume); stemMixerList.append(row); stemTracks[name] = item;
+    solo.addEventListener("click", () => {
+      const activate = !item.solo;
+      Object.values(stemTracks).forEach((other) => { other.solo = false; other.soloButton?.classList.remove("active"); });
+      item.solo = activate; solo.classList.toggle("active", activate);
+      Object.entries(stemTracks).forEach(([key, other]) => { const track = webAudioSources[key]; if (track) track.gain.gain.value = activate && key !== name ? 0 : (other.muted ? 0 : Number(other.volume.value)); });
+    });
+    row.append(mute, solo, label, volume); stemMixerList.append(row); stemTracks[name] = item;
   });
   karaokeAudio.volume = 1;
+  stemMixer.hidden = true;
+  stemSettings.hidden = !available.length;
+  stemSettings.setAttribute("aria-expanded", "false");
 }
 
 function mixUrl(job) {
@@ -627,7 +641,7 @@ function loadKaraokeSong() {
   setupStemMixer(job);
   activeMixJob = job;
   stopWebAudio();
-  if (!stemMixer.hidden) {
+  if (mixerAvailable) {
     loadWebAudioSong(job).then(() => { karaokeToggle.textContent = "Ⅱ Pausar"; }).catch(() => { karaokeAudio.volume = 1; karaokeAudio.src = `/api/karaoke?id=${encodeURIComponent(job.id)}`; karaokeAudio.load(); karaokeAudio.play().catch(() => {}); });
   } else {
     karaokeAudio.src = `/api/karaoke?id=${encodeURIComponent(job.id)}`;
@@ -689,6 +703,10 @@ partyMode.addEventListener("click", () => {
   partyMode.textContent = partyModeEnabled ? "🎲 Festa ligada" : "🎲 Modo festa";
 });
 document.querySelector("#karaoke-close").addEventListener("click", closeKaraoke);
+stemSettings.addEventListener("click", () => {
+  stemMixer.hidden = !stemMixer.hidden;
+  stemSettings.setAttribute("aria-expanded", String(!stemMixer.hidden));
+});
 document.querySelector("#karaoke-fullscreen").addEventListener("click", async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
@@ -699,7 +717,7 @@ document.querySelector("#karaoke-fullscreen").addEventListener("click", async ()
 });
 karaokeNext.addEventListener("click", nextKaraokeSong);
 karaokeToggle.addEventListener("click", () => {
-  if (!stemMixer.hidden && webAudioContext) {
+  if (mixerAvailable && webAudioContext) {
     if (webAudioPlaying) { webAudioOffset = webAudioTime(); stopWebAudio(); karaokeToggle.textContent = "▶ Reproduzir"; }
     else { startWebAudioSources(webAudioOffset); karaokeToggle.textContent = "Ⅱ Pausar"; }
     return;
@@ -729,7 +747,7 @@ karaokeAudio.addEventListener("error", () => {
 });
 karaokeSeek.addEventListener("input", () => {
   keepKaraokeControlsVisible();
-  if (!stemMixer.hidden && webAudioContext && webAudioBuffers && Object.keys(webAudioBuffers).length) {
+  if (mixerAvailable && webAudioContext && webAudioBuffers && Object.keys(webAudioBuffers).length) {
     webAudioOffset = Number(karaokeSeek.value) / 1000 * webAudioDuration;
     if (webAudioPlaying) startWebAudioSources(webAudioOffset);
     return;

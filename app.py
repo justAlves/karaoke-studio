@@ -28,7 +28,7 @@ DOWNLOAD_QUEUE = DownloadQueue()
 
 
 def build_mix(video_id: str, levels: dict[str, float]) -> Path | None:
-    names = ("backing_vocals", "drums", "bass", "guitar", "piano", "other")
+    names = ("lead_vocals", "backing_vocals", "drums", "bass", "guitar", "piano", "other")
     target = ROOT / "stems" / video_id
     paths = [target / f"{name}.flac" for name in names]
     if not all(path.is_file() for path in paths):
@@ -318,7 +318,7 @@ class Handler(BaseHTTPRequestHandler):
             parameters = parse_qs(parsed.query)
             video_id = parameters.get("id", [""])[0]
             stem = parameters.get("stem", [""])[0]
-            allowed_stems = {"drums", "bass", "guitar", "piano", "other", "backing_vocals"}
+            allowed_stems = {"lead_vocals", "drums", "bass", "guitar", "piano", "other", "backing_vocals"}
             if not VIDEO_ID.fullmatch(video_id) or stem not in allowed_stems:
                 self.send_json({"error": "Faixa inválida."}, 400)
                 return
