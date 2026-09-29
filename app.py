@@ -27,6 +27,9 @@ DOWNLOAD_QUEUE = DownloadQueue()
 
 
 def session_url() -> str:
+    public_url = os.environ.get("KARAOKE_PUBLIC_URL", "").strip().rstrip("/")
+    if public_url:
+        return public_url + "/"
     host = os.environ.get("KARAOKE_HOST", "").strip()
     if not host:
         probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
