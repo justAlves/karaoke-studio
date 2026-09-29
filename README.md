@@ -32,6 +32,8 @@ Depois abra `http://IP_DO_SERVIDOR:8000`. Para o QR Code gerar o endereço corre
 KARAOKE_HOST=karaoke.exemplo.com docker compose up -d --build
 ```
 
+Para proteger a sessão com senha no Coolify, crie as variáveis `KARAOKE_PASSWORD` e `KARAOKE_AUTH_SECRET` no painel. A senha é solicitada na primeira abertura e a autenticação fica em um cookie HttpOnly. Em produção atrás de HTTPS, mantenha `KARAOKE_COOKIE_SECURE=true`.
+
 Se usar um IP, informe apenas o host, sem `http://` e sem a porta. Libere a porta 8000 no firewall ou use um proxy reverso HTTPS. Como a sessão não tem autenticação nesta versão, mantenha o serviço atrás de uma rede privada, VPN ou proteção de acesso quando ele estiver em um servidor público.
 
 ## Sessão compartilhada

@@ -32,6 +32,6 @@ EXPOSE 8000
 VOLUME ["/app/data", "/app/downloads", "/app/models", "/app/stems"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD curl --fail http://127.0.0.1:8000/api/session || exit 1
+  CMD curl --fail http://127.0.0.1:8000/api/health || exit 1
 
 CMD ["python", "app.py"]

@@ -9,6 +9,9 @@ services:
       - "8000:8000"
     environment:
       KARAOKE_HOST: "${KARAOKE_HOST:-}"
+      KARAOKE_PASSWORD: "${KARAOKE_PASSWORD:-}"
+      KARAOKE_AUTH_SECRET: "${KARAOKE_AUTH_SECRET:-}"
+      KARAOKE_COOKIE_SECURE: "${KARAOKE_COOKIE_SECURE:-true}"
     volumes:
       - karaoke-data:/app/data
       - karaoke-downloads:/app/downloads

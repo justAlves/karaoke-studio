@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import hmac
 import os
 import re
 import shutil
@@ -146,6 +148,35 @@ def preview_audio(video_id: str) -> bytes:
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _auth_enabled(self) -> bool:
+        return bool(os.environ.get("KARAOKE_PASSWORD", "").strip())
+
+    def _auth_token(self) -> str:
+        password = os.environ.get("KARAOKE_PASSWORD", "")
+        secret = os.environ.get("KARAOKE_AUTH_SECRET", password)
+        return hmac.new(secret.encode(), b"karaoke-session", hashlib.sha256).hexdigest()
+
+    def _authorized(self) -> bool:
+        if not self._auth_enabled():
+            return True
+        cookies = self.headers.get("Cookie", "")
+        expected = self._auth_token()
+        return any(part.strip() == f"karaoke_auth={expected}" for part in cookies.split(";"))
+
+    def _login_page(self) -> None:
+        body = """<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Karaoke Studio — acesso</title><style>
+        :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0c0d0f;color:#f4efe7;font:16px system-ui,sans-serif}main{width:min(390px,calc(100% - 32px));padding:32px;border:1px solid #34332f;border-radius:18px;background:#151614;box-shadow:0 24px 80px #0008}h1{margin:0 0 8px;font-size:28px}p{margin:0 0 24px;color:#aaa79f;line-height:1.5}label{display:block;margin-bottom:8px;color:#cbc5b9;font-size:13px}input{width:100%;padding:13px 14px;border:1px solid #494740;border-radius:10px;background:#0e0f0e;color:#fff;font:inherit}button{width:100%;margin-top:14px;padding:13px;border:0;border-radius:10px;background:#e7a84f;color:#17130d;font-weight:700;font:inherit;cursor:pointer}#error{min-height:22px;margin-top:12px;color:#ed8b79;font-size:14px}</style></head><body><main><h1>♫ Karaoke Studio</h1><p>Informe a senha da sessão para entrar.</p><form id="login"><label for="password">Senha da sessão</label><input id="password" type="password" autocomplete="current-password" required autofocus><button>Entrar</button><div id="error" role="alert"></div></form></main><script>document.getElementById('login').addEventListener('submit',async e=>{e.preventDefault();const error=document.getElementById('error');error.textContent='';try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('password').value})});if(!r.ok)throw new Error('Senha incorreta.');location.href='/'}catch(err){error.textContent=err.message}})</script></body></html>"""
+        self.send_bytes(body.encode("utf-8"), 200, "text/html; charset=utf-8")
+
+    def _require_auth(self, route: str) -> bool:
+        if route in {"/api/health", "/api/login", "/login"} or self._authorized():
+            return True
+        if route == "/":
+            self._login_page()
+        else:
+            self.send_json({"error": "Autenticação necessária."}, 401)
+        return False
+
     def send_bytes(self, body: bytes, status: int, content_type: str) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -204,6 +235,19 @@ class Handler(BaseHTTPRequestHandler):
         }
         parsed = urlparse(self.path)
         route = parsed.path
+        if not self._require_auth(route):
+            return
+        if route == "/login":
+            if self._authorized():
+                self.send_response(302)
+                self.send_header("Location", "/")
+                self.end_headers()
+            else:
+                self._login_page()
+            return
+        if route == "/api/health":
+            self.send_json({"status": "ok"})
+            return
         if route == "/api/queue":
             self.send_json({"jobs": DOWNLOAD_QUEUE.list_jobs()})
             return
@@ -258,6 +302,26 @@ class Handler(BaseHTTPRequestHandler):
         self.send_bytes(path.read_bytes(), 200, content_type)
 
     def do_POST(self) -> None:
+        if self.path == "/api/login":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length < 1 or length > 4096:
+                    raise ValueError("Dados inválidos.")
+                payload = json.loads(self.rfile.read(length))
+                password = payload.get("password", "") if isinstance(payload, dict) else ""
+                expected = os.environ.get("KARAOKE_PASSWORD", "")
+                if not expected or not isinstance(password, str) or not hmac.compare_digest(password, expected):
+                    self.send_json({"error": "Senha incorreta."}, 401)
+                    return
+                self.send_response(204)
+                secure = "; Secure" if os.environ.get("KARAOKE_COOKIE_SECURE", "").lower() in {"1", "true", "yes"} else ""
+                self.send_header("Set-Cookie", f"karaoke_auth={self._auth_token()}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax{secure}")
+                self.end_headers()
+            except (ValueError, json.JSONDecodeError):
+                self.send_json({"error": "Dados inválidos."}, 400)
+            return
+        if not self._require_auth(urlparse(self.path).path):
+            return
         if self.path not in {"/api/search", "/api/queue"}:
             self.send_json({"error": "Página não encontrada."}, 404)
             return
@@ -316,7 +380,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    address = (os.environ.get("KARAOKE_BIND", "0.0.0.0"), 8000)
+    port = int(os.environ.get("KARAOKE_PORT", "8000"))
+    address = (os.environ.get("KARAOKE_BIND", "0.0.0.0"), port)
     server = ThreadingHTTPServer(address, Handler)
     print(f"Karaoke Studio em {session_url()}")
     try:
