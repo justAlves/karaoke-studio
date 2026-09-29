@@ -21,6 +21,7 @@ services:
       FIREBASE_SERVICE_ACCOUNT_B64: "${FIREBASE_SERVICE_ACCOUNT_B64:-}"
       CLOUD_CLEANUP_LOCAL: "${CLOUD_CLEANUP_LOCAL:-true}"
       YOUTUBE_COOKIES_B64: "${YOUTUBE_COOKIES_B64:-}"
+      YOUTUBE_PLAYER_CLIENTS: "${YOUTUBE_PLAYER_CLIENTS:-}"
     volumes:
       - karaoke-data:/app/data
       - karaoke-downloads:/app/downloads

@@ -10,7 +10,9 @@ COOKIE_FILE = Path("/tmp/karaoke-youtube-cookies.txt")
 
 def configure(options: dict) -> dict:
     """Aplica clientes alternativos e cookies opcionais sem expor segredos no código."""
-    options.setdefault("extractor_args", {}).setdefault("youtube", {})["player_client"] = ["android", "web_safari"]
+    clients = [item.strip() for item in os.environ.get("YOUTUBE_PLAYER_CLIENTS", "").split(",") if item.strip()]
+    if clients:
+        options.setdefault("extractor_args", {}).setdefault("youtube", {})["player_client"] = clients
     encoded = os.environ.get("YOUTUBE_COOKIES_B64", "").strip()
     if encoded:
         try:

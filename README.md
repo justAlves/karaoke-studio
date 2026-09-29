@@ -54,6 +54,8 @@ base64 -w0 youtube-cookies.txt
 
 Os cookies devem ficar somente como variável de runtime e nunca como build argument ou arquivo no Git.
 
+Por padrão, o yt-dlp escolhe os clientes disponíveis automaticamente. `YOUTUBE_PLAYER_CLIENTS` é opcional e pode receber uma lista separada por vírgulas para testes específicos. Para evitar cookies pessoais, a alternativa mais robusta é executar um provedor de PO Token, como `bgutil-ytdlp-pot-provider`, ao lado do container e configurá-lo conforme a documentação do yt-dlp.
+
 Defina `CLOUD_CLEANUP_LOCAL=true` para remover os arquivos locais depois do upload. O karaokê é baixado do R2 novamente quando alguém iniciar a música.
 
 Se usar um IP, informe apenas o host, sem `http://` e sem a porta. Libere a porta 8010 no firewall ou use um proxy reverso HTTPS. Como a sessão não tem autenticação nesta versão, mantenha o serviço atrás de uma rede privada, VPN ou proteção de acesso quando ele estiver em um servidor público.
