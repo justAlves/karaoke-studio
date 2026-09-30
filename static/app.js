@@ -35,6 +35,7 @@ const karaokeNext = document.querySelector("#karaoke-next");
 const stemMixer = document.querySelector("#stem-mixer");
 const stemMixerList = document.querySelector("#stem-mixer-list");
 const stemSettings = document.querySelector("#stem-settings");
+const stemMixerClose = document.querySelector("#stem-mixer-close");
 const stemLabels = { lead_vocals: "Voz principal", backing_vocals: "Backing vocal", drums: "Bateria", bass: "Baixo", guitar: "Guitarra", piano: "Piano", other: "Outros instrumentos" };
 const stemTracks = {};
 let activePreview = null;
@@ -706,6 +707,10 @@ document.querySelector("#karaoke-close").addEventListener("click", closeKaraoke)
 stemSettings.addEventListener("click", () => {
   stemMixer.hidden = !stemMixer.hidden;
   stemSettings.setAttribute("aria-expanded", String(!stemMixer.hidden));
+});
+stemMixerClose.addEventListener("click", () => {
+  stemMixer.hidden = true;
+  stemSettings.setAttribute("aria-expanded", "false");
 });
 document.querySelector("#karaoke-fullscreen").addEventListener("click", async () => {
   try {
